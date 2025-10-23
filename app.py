@@ -1,0 +1,670 @@
+"""
+单词记忆工具 Flask 应用
+"""
+import os
+from datetime import datetime, timedelta
+from flask import Flask, request, jsonify
+from flask_jwt_extended import (
+    JWTManager, create_access_token, jwt_required, get_jwt_identity
+)
+from flask_cors import CORS
+from dotenv import load_dotenv
+from sqlalchemy import func
+
+from models import db, User, Word, Syllable, WordSyllable, UserWordQuery, UserSyllableQuery
+from deepseek_service import DeepseekService
+
+# 加载环境变量
+load_dotenv()
+
+# 创建Flask应用
+app = Flask(__name__)
+
+# 配置
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///word_memory.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'your-secret-key-change-this')
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=7)
+
+# 初始化扩展
+db.init_app(app)
+jwt = JWTManager(app)
+CORS(app)
+
+# 初始化 Deepseek 服务
+deepseek_service = DeepseekService()
+
+
+# ==================== 用户认证相关 API ====================
+
+@app.route('/api/auth/register', methods=['POST'])
+def register():
+    """用户注册"""
+    try:
+        data = request.get_json()
+        
+        username = data.get('username')
+        email = data.get('email')
+        password = data.get('password')
+        
+        # 验证必填字段
+        if not username or not email or not password:
+            return jsonify({'error': '用户名、邮箱和密码都是必填项'}), 400
+        
+        # 检查用户名是否已存在
+        if User.query.filter_by(username=username).first():
+            return jsonify({'error': '用户名已存在'}), 400
+        
+        # 检查邮箱是否已存在
+        if User.query.filter_by(email=email).first():
+            return jsonify({'error': '邮箱已被注册'}), 400
+        
+        # 创建新用户
+        user = User(username=username, email=email)
+        user.set_password(password)
+        
+        db.session.add(user)
+        db.session.commit()
+        
+        # 生成访问令牌（identity 必须是字符串）
+        access_token = create_access_token(identity=str(user.id))
+        
+        return jsonify({
+            'message': '注册成功',
+            'access_token': access_token,
+            'user': user.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'注册失败: {str(e)}'}), 500
+
+
+@app.route('/api/auth/login', methods=['POST'])
+def login():
+    """用户登录"""
+    try:
+        data = request.get_json()
+        
+        username = data.get('username')
+        password = data.get('password')
+        
+        if not username or not password:
+            return jsonify({'error': '用户名和密码都是必填项'}), 400
+        
+        # 查找用户
+        user = User.query.filter_by(username=username).first()
+        
+        if not user or not user.check_password(password):
+            return jsonify({'error': '用户名或密码错误'}), 401
+        
+        # 生成访问令牌（identity 必须是字符串）
+        access_token = create_access_token(identity=str(user.id))
+        
+        return jsonify({
+            'message': '登录成功',
+            'access_token': access_token,
+            'user': user.to_dict()
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': f'登录失败: {str(e)}'}), 500
+
+
+@app.route('/api/auth/me', methods=['GET'])
+@jwt_required()
+def get_current_user():
+    """获取当前用户信息"""
+    try:
+        user_id = int(get_jwt_identity())  # 从字符串转回整数
+        user = User.query.get(user_id)
+        
+        if not user:
+            return jsonify({'error': '用户不存在'}), 404
+        
+        return jsonify({'user': user.to_dict()}), 200
+        
+    except Exception as e:
+        return jsonify({'error': f'获取用户信息失败: {str(e)}'}), 500
+
+
+# ==================== 单词管理相关 API ====================
+
+@app.route('/api/words', methods=['POST'])
+@jwt_required()
+def add_word():
+    """
+    添加单词（支持两种模式）
+    
+    模式1 - 手动添加：传入完整信息
+    {
+        "word": "conversation",
+        "syllables": ["con", "ver", "sa", "tion"],
+        "translation": "会话，谈话",
+        "phonetic": "/ˌkɒnvəˈseɪʃən/"
+    }
+    
+    模式2 - AI自动获取：只传入单词
+    {
+        "word": "conversation"
+    }
+    """
+    try:
+        data = request.get_json()
+        
+        word_text = data.get('word', '').strip().lower()
+        if not word_text:
+            return jsonify({'error': '单词是必填项'}), 400
+        
+        # 检查单词是否已存在
+        existing_word = Word.query.filter_by(word=word_text).first()
+        if existing_word:
+            return jsonify({
+                'message': '单词已存在',
+                'word': existing_word.to_dict()
+            }), 200
+        
+        # 判断是手动模式还是AI自动模式
+        syllables_input = data.get('syllables')
+        
+        # 模式1：手动添加（传入了 syllables）
+        if syllables_input is not None:
+            translation = data.get('translation', '').strip()
+            phonetic = data.get('phonetic', '').strip()
+            
+            # 验证必填字段
+            if not translation:
+                return jsonify({'error': '手动添加模式下，translation 是必填项'}), 400
+            
+            # 验证 syllables 格式
+            if not isinstance(syllables_input, list) or not syllables_input:
+                return jsonify({'error': 'syllables 必须是非空数组'}), 400
+            
+            syllables_list = [s.strip().lower() for s in syllables_input if s.strip()]
+            
+            if not syllables_list:
+                return jsonify({'error': 'syllables 不能为空'}), 400
+            
+            # 创建单词
+            word = Word(
+                word=word_text,
+                translation=translation,
+                phonetic=phonetic
+            )
+            db.session.add(word)
+            db.session.flush()
+            
+            print(f"手动添加单词: {word_text}")
+            print(f"  音标: {phonetic}")
+            print(f"  翻译: {translation}")
+            print(f"  音节: {' '.join(syllables_list)}")
+        
+        # 模式2：AI自动获取
+        else:
+            print(f"AI自动获取单词信息: {word_text}")
+            
+            # 调用 Deepseek API 获取完整信息
+            word_info = deepseek_service.get_word_info(word_text)
+            
+            if not word_info:
+                return jsonify({
+                    'error': 'AI自动获取单词信息失败',
+                    'message': '请检查 DEEPSEEK_API_KEY 配置或使用手动添加模式'
+                }), 500
+            
+            # 创建单词
+            word = Word(
+                word=word_text,
+                translation=word_info['translation'],
+                phonetic=word_info['phonetic']
+            )
+            db.session.add(word)
+            db.session.flush()
+            
+            syllables_list = word_info['syllables']
+        
+        # 创建或获取音节，并关联到单词
+        for position, syllable_text in enumerate(syllables_list):
+            syllable_text = syllable_text.strip().lower()
+            if not syllable_text:
+                continue
+            
+            # 查找或创建音节
+            syllable = Syllable.query.filter_by(syllable=syllable_text).first()
+            if not syllable:
+                syllable = Syllable(syllable=syllable_text)
+                db.session.add(syllable)
+                db.session.flush()
+            
+            # 创建单词-音节关联
+            word_syllable = WordSyllable(
+                word_id=word.id,
+                syllable_id=syllable.id,
+                position=position
+            )
+            db.session.add(word_syllable)
+        
+        db.session.commit()
+        
+        mode = "手动添加" if syllables_input is not None else "AI自动获取"
+        
+        return jsonify({
+            'message': f'单词添加成功（{mode}）',
+            'word': word.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'添加单词失败: {str(e)}'}), 500
+
+
+@app.route('/api/words/<int:word_id>', methods=['GET'])
+@jwt_required()
+def get_word(word_id):
+    """查询单词详情（会记录查询次数）"""
+    try:
+        user_id = int(get_jwt_identity())  # 从字符串转回整数
+        
+        # 查找单词
+        word = Word.query.get(word_id)
+        if not word:
+            return jsonify({'error': '单词不存在'}), 404
+        
+        # 记录用户查询单词次数
+        user_word_query = UserWordQuery.query.filter_by(
+            user_id=user_id,
+            word_id=word_id
+        ).first()
+        
+        if user_word_query:
+            user_word_query.query_count += 1
+            user_word_query.last_queried_at = datetime.utcnow()
+        else:
+            user_word_query = UserWordQuery(
+                user_id=user_id,
+                word_id=word_id,
+                query_count=1
+            )
+            db.session.add(user_word_query)
+        
+        # 记录用户查询音节次数
+        for word_syllable in word.word_syllables.all():
+            syllable_id = word_syllable.syllable_id
+            
+            user_syllable_query = UserSyllableQuery.query.filter_by(
+                user_id=user_id,
+                syllable_id=syllable_id
+            ).first()
+            
+            if user_syllable_query:
+                user_syllable_query.query_count += 1
+                user_syllable_query.last_queried_at = datetime.utcnow()
+            else:
+                user_syllable_query = UserSyllableQuery(
+                    user_id=user_id,
+                    syllable_id=syllable_id,
+                    query_count=1
+                )
+                db.session.add(user_syllable_query)
+        
+        db.session.commit()
+        
+        # 返回单词信息和查询次数
+        word_dict = word.to_dict()
+        word_dict['query_count'] = user_word_query.query_count
+        
+        return jsonify({'word': word_dict}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'查询单词失败: {str(e)}'}), 500
+
+
+@app.route('/api/words/search', methods=['GET'])
+@jwt_required()
+def search_word():
+    """按单词文本搜索（会记录查询次数）"""
+    try:
+        user_id = int(get_jwt_identity())  # 从字符串转回整数
+        word_text = request.args.get('word', '').strip().lower()
+        
+        if not word_text:
+            return jsonify({'error': '请提供要搜索的单词'}), 400
+        
+        # 查找单词
+        word = Word.query.filter_by(word=word_text).first()
+        if not word:
+            return jsonify({'error': '单词不存在'}), 404
+        
+        # 记录用户查询单词次数
+        user_word_query = UserWordQuery.query.filter_by(
+            user_id=user_id,
+            word_id=word.id
+        ).first()
+        
+        if user_word_query:
+            user_word_query.query_count += 1
+            user_word_query.last_queried_at = datetime.utcnow()
+        else:
+            user_word_query = UserWordQuery(
+                user_id=user_id,
+                word_id=word.id,
+                query_count=1
+            )
+            db.session.add(user_word_query)
+        
+        # 记录用户查询音节次数
+        for word_syllable in word.word_syllables.all():
+            syllable_id = word_syllable.syllable_id
+            
+            user_syllable_query = UserSyllableQuery.query.filter_by(
+                user_id=user_id,
+                syllable_id=syllable_id
+            ).first()
+            
+            if user_syllable_query:
+                user_syllable_query.query_count += 1
+                user_syllable_query.last_queried_at = datetime.utcnow()
+            else:
+                user_syllable_query = UserSyllableQuery(
+                    user_id=user_id,
+                    syllable_id=syllable_id,
+                    query_count=1
+                )
+                db.session.add(user_syllable_query)
+        
+        db.session.commit()
+        
+        # 返回单词信息和查询次数
+        word_dict = word.to_dict()
+        word_dict['query_count'] = user_word_query.query_count
+        
+        return jsonify({'word': word_dict}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'搜索单词失败: {str(e)}'}), 500
+
+
+@app.route('/api/words/lookup', methods=['POST'])
+@jwt_required()
+def lookup_word():
+    """智能查询单词：存在则查询并记录次数，不存在则自动添加（AI模式）"""
+    try:
+        user_id = int(get_jwt_identity())
+        data = request.get_json()
+        
+        word_text = data.get('word', '').strip().lower()
+        
+        if not word_text:
+            return jsonify({'error': '请提供单词'}), 400
+        
+        # 查找单词是否已存在
+        word = Word.query.filter_by(word=word_text).first()
+        
+        # 情况1：单词已存在 - 查询并记录次数
+        if word:
+            print(f"单词 '{word_text}' 已存在，返回详情并记录查询次数")
+            
+            # 记录用户查询单词次数
+            user_word_query = UserWordQuery.query.filter_by(
+                user_id=user_id,
+                word_id=word.id
+            ).first()
+            
+            if user_word_query:
+                user_word_query.query_count += 1
+                user_word_query.last_queried_at = datetime.utcnow()
+            else:
+                user_word_query = UserWordQuery(
+                    user_id=user_id,
+                    word_id=word.id,
+                    query_count=1
+                )
+                db.session.add(user_word_query)
+            
+            # 记录用户查询音节次数
+            for word_syllable in word.word_syllables.all():
+                syllable_id = word_syllable.syllable_id
+                
+                user_syllable_query = UserSyllableQuery.query.filter_by(
+                    user_id=user_id,
+                    syllable_id=syllable_id
+                ).first()
+                
+                if user_syllable_query:
+                    user_syllable_query.query_count += 1
+                    user_syllable_query.last_queried_at = datetime.utcnow()
+                else:
+                    user_syllable_query = UserSyllableQuery(
+                        user_id=user_id,
+                        syllable_id=syllable_id,
+                        query_count=1
+                    )
+                    db.session.add(user_syllable_query)
+            
+            db.session.commit()
+            
+            # 返回单词信息
+            word_dict = word.to_dict()
+            word_dict['query_count'] = user_word_query.query_count
+            
+            return jsonify({
+                'message': '单词已存在',
+                'action': 'queried',
+                'word': word_dict
+            }), 200
+        
+        # 情况2：单词不存在 - 使用AI自动添加
+        else:
+            print(f"单词 '{word_text}' 不存在，使用AI自动添加")
+            
+            # 调用 Deepseek API 获取完整信息
+            word_info = deepseek_service.get_word_info(word_text)
+            
+            if not word_info:
+                return jsonify({
+                    'error': 'AI自动获取单词信息失败',
+                    'message': '请检查 DEEPSEEK_API_KEY 配置或使用手动添加模式'
+                }), 500
+            
+            # 创建单词
+            word = Word(
+                word=word_text,
+                translation=word_info['translation'],
+                phonetic=word_info['phonetic']
+            )
+            db.session.add(word)
+            db.session.flush()
+            
+            syllables_list = word_info['syllables']
+            
+            # 创建或获取音节，并关联到单词
+            for position, syllable_text in enumerate(syllables_list):
+                syllable_text = syllable_text.strip().lower()
+                if not syllable_text:
+                    continue
+                
+                # 查找或创建音节
+                syllable = Syllable.query.filter_by(syllable=syllable_text).first()
+                if not syllable:
+                    syllable = Syllable(syllable=syllable_text)
+                    db.session.add(syllable)
+                    db.session.flush()
+                
+                # 创建单词-音节关联
+                word_syllable = WordSyllable(
+                    word_id=word.id,
+                    syllable_id=syllable.id,
+                    position=position
+                )
+                db.session.add(word_syllable)
+            
+            db.session.commit()
+            
+            print(f"单词添加成功: {word.word}")
+            print(f"  音标: {word.phonetic}")
+            print(f"  翻译: {word.translation}")
+            print(f"  音节: {' '.join(syllables_list)}")
+            
+            return jsonify({
+                'message': '单词不存在，已自动添加（AI自动获取）',
+                'action': 'added',
+                'word': word.to_dict()
+            }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'智能查询失败: {str(e)}'}), 500
+
+
+@app.route('/api/words', methods=['GET'])
+@jwt_required()
+def list_words():
+    """获取单词列表"""
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+        
+        # 分页查询
+        pagination = Word.query.order_by(Word.created_at.desc()).paginate(
+            page=page, per_page=per_page, error_out=False
+        )
+        
+        words = [word.to_dict() for word in pagination.items]
+        
+        return jsonify({
+            'words': words,
+            'total': pagination.total,
+            'page': page,
+            'per_page': per_page,
+            'pages': pagination.pages
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': f'获取单词列表失败: {str(e)}'}), 500
+
+
+# ==================== 统计相关 API ====================
+
+@app.route('/api/stats/words', methods=['GET'])
+@jwt_required()
+def get_word_stats():
+    """获取用户的单词查询统计"""
+    try:
+        user_id = int(get_jwt_identity())  # 从字符串转回整数
+        limit = request.args.get('limit', 50, type=int)
+        
+        # 查询用户查询次数最多的单词
+        queries = UserWordQuery.query.filter_by(user_id=user_id)\
+            .order_by(UserWordQuery.query_count.desc())\
+            .limit(limit)\
+            .all()
+        
+        stats = [q.to_dict() for q in queries]
+        
+        return jsonify({'stats': stats}), 200
+        
+    except Exception as e:
+        return jsonify({'error': f'获取统计失败: {str(e)}'}), 500
+
+
+@app.route('/api/stats/syllables', methods=['GET'])
+@jwt_required()
+def get_syllable_stats():
+    """获取用户的音节查询统计"""
+    try:
+        user_id = int(get_jwt_identity())  # 从字符串转回整数
+        limit = request.args.get('limit', 50, type=int)
+        
+        # 查询用户查询次数最多的音节
+        queries = UserSyllableQuery.query.filter_by(user_id=user_id)\
+            .order_by(UserSyllableQuery.query_count.desc())\
+            .limit(limit)\
+            .all()
+        
+        stats = [q.to_dict() for q in queries]
+        
+        return jsonify({'stats': stats}), 200
+        
+    except Exception as e:
+        return jsonify({'error': f'获取统计失败: {str(e)}'}), 500
+
+
+@app.route('/api/stats/overview', methods=['GET'])
+@jwt_required()
+def get_stats_overview():
+    """获取用户的统计概览"""
+    try:
+        user_id = int(get_jwt_identity())  # 从字符串转回整数
+        
+        # 总查询单词数
+        total_word_queries = db.session.query(func.sum(UserWordQuery.query_count))\
+            .filter_by(user_id=user_id).scalar() or 0
+        
+        # 查询过的不同单词数
+        unique_words_queried = UserWordQuery.query.filter_by(user_id=user_id).count()
+        
+        # 总查询音节数
+        total_syllable_queries = db.session.query(func.sum(UserSyllableQuery.query_count))\
+            .filter_by(user_id=user_id).scalar() or 0
+        
+        # 查询过的不同音节数
+        unique_syllables_queried = UserSyllableQuery.query.filter_by(user_id=user_id).count()
+        
+        # 系统中总单词数
+        total_words_in_system = Word.query.count()
+        
+        # 系统中总音节数
+        total_syllables_in_system = Syllable.query.count()
+        
+        return jsonify({
+            'overview': {
+                'total_word_queries': total_word_queries,
+                'unique_words_queried': unique_words_queried,
+                'total_syllable_queries': total_syllable_queries,
+                'unique_syllables_queried': unique_syllables_queried,
+                'total_words_in_system': total_words_in_system,
+                'total_syllables_in_system': total_syllables_in_system
+            }
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': f'获取统计概览失败: {str(e)}'}), 500
+
+
+# ==================== 健康检查 ====================
+
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """健康检查接口"""
+    return jsonify({
+        'status': 'ok',
+        'message': '单词记忆工具 API 运行正常'
+    }), 200
+
+
+# ==================== 初始化数据库 ====================
+
+def init_db():
+    """初始化数据库"""
+    with app.app_context():
+        db.create_all()
+        print("数据库初始化完成！")
+
+
+if __name__ == '__main__':
+    # 初始化数据库
+    init_db()
+    
+    # 启动应用
+    host = os.getenv('FLASK_HOST', '0.0.0.0')
+    port = int(os.getenv('FLASK_PORT', 5000))
+    debug = os.getenv('FLASK_DEBUG', 'True').lower() == 'true'
+    
+    print(f"正在启动服务器...")
+    print(f"地址: http://{host}:{port}")
+    print(f"调试模式: {debug}")
+    
+    app.run(host=host, port=port, debug=debug)
+

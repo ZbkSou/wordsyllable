@@ -1,0 +1,92 @@
+#!/bin/bash
+
+echo "================================================"
+echo "  单词记忆助手 - 完整项目启动脚本"
+echo "================================================"
+echo ""
+echo "本脚本将依次启动："
+echo "  1. 后端 API 服务器 (端口 5000)"
+echo "  2. 前端 Web 应用 (端口 3000)"
+echo ""
+echo "================================================"
+echo ""
+
+# 检查虚拟环境
+if [ ! -f "venv/bin/activate" ]; then
+    echo "[错误] 未找到虚拟环境！"
+    echo "[提示] 请先运行 ./setup_venv.sh 创建虚拟环境"
+    exit 1
+fi
+
+# 检查 .env 文件
+if [ ! -f ".env" ]; then
+    echo "[警告] 未找到 .env 配置文件！"
+    echo "[提示] 请确保已配置 DEEPSEEK_API_KEY"
+    if [ -f "config_example.env" ]; then
+        echo "[提示] 正在复制示例配置文件..."
+        cp config_example.env .env
+        echo "[警告] 请编辑 .env 文件并配置 DEEPSEEK_API_KEY"
+        read -p "按回车键继续..."
+    fi
+fi
+
+echo "[步骤 1/2] 启动后端 API 服务器..."
+echo ""
+
+# 激活虚拟环境并启动后端（后台运行）
+source venv/bin/activate
+python start_server.py &
+BACKEND_PID=$!
+
+echo "[提示] 后端服务已启动 (PID: $BACKEND_PID)"
+echo "[等待] 等待后端服务启动..."
+sleep 5
+
+echo ""
+echo "[步骤 2/2] 启动前端 Web 应用..."
+echo ""
+
+cd word-next
+
+# 检查前端依赖
+if [ ! -d "node_modules" ]; then
+    echo "[提示] 检测到未安装前端依赖，正在安装..."
+    npm install
+    if [ $? -ne 0 ]; then
+        echo "[错误] 前端依赖安装失败！"
+        kill $BACKEND_PID
+        exit 1
+    fi
+fi
+
+# 检查前端环境变量
+if [ ! -f ".env.local" ]; then
+    echo "[提示] 正在创建前端配置文件..."
+    echo "NEXT_PUBLIC_API_URL=http://localhost:5000/api" > .env.local
+fi
+
+# 启动前端
+npm run dev &
+FRONTEND_PID=$!
+
+cd ..
+
+echo ""
+echo "================================================"
+echo "  启动完成！"
+echo "================================================"
+echo ""
+echo "  后端 API:  http://localhost:5000"
+echo "  前端 Web:  http://localhost:3000"
+echo ""
+echo "  请在浏览器中访问前端地址开始使用"
+echo ""
+echo "  按 Ctrl+C 停止所有服务"
+echo "================================================"
+echo ""
+
+# 等待用户中断
+trap "echo ''; echo '正在停止服务...'; kill $BACKEND_PID $FRONTEND_PID 2>/dev/null; exit 0" INT
+
+wait
+
