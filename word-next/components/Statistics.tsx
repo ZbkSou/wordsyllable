@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { statsAPI, StatsOverview, WordStat, SyllableStat } from '@/lib/api';
+import { statsAPI, StatsOverview, WordStat, SyllableStat } from '@/utils/api';
 
 export default function Statistics() {
   const [overview, setOverview] = useState<StatsOverview | null>(null);

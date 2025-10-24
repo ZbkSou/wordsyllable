@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { wordsAPI, Word } from '@/lib/api';
+import { wordsAPI, Word } from '@/utils/api';
 
 interface WordListProps {
   refresh: number;

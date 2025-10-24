@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { wordsAPI } from '@/lib/api';
+import { wordsAPI } from '@/utils/api';
 
 interface AddWordProps {
   onWordAdded: () => void;

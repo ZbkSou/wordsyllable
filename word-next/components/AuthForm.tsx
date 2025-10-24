@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { authAPI, RegisterData, LoginData } from '@/lib/api';
+import { authAPI, RegisterData, LoginData } from '@/utils/api';
 
 interface AuthFormProps {
   onSuccess: () => void;
