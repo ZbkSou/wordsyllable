@@ -127,7 +127,7 @@ class DeepseekService:
     def get_word_info(self, word):
         """
         使用 Deepseek API 获取单词的完整信息
-        包括：音标、翻译、音节分词
+        包括：音标、翻译、音节分词、自然拼读解析、词根词缀
         
         Args:
             word: 要查询的单词
@@ -137,7 +137,9 @@ class DeepseekService:
                 'word': str,
                 'phonetic': str,
                 'translation': str,
-                'syllables': list
+                'syllables': list,
+                'phonetic_analysis': str,
+                'root_affix': str
             }
             如果失败返回 None
         """
@@ -155,12 +157,14 @@ class DeepseekService:
 {{
   "phonetic": "/IPA/", 
   "translation": "Chinese translation",
-  "syllables": "syllable separation"
+  "syllables": "syllable separation",
+  "phonetic_analysis": "natural phonics analysis in Chinese",
+  "root_affix": "word roots and affixes analysis in Chinese"
 }}
 
 Example:
 Input: conversation
-Output: {{"phonetic": "/ˌkɒnvəˈseɪʃn/", "translation": "会话", "syllables": "con ver sa tion"}}
+Output: {{"phonetic": "/ˌkɒnvəˈseɪʃn/", "translation": "会话，谈话", "syllables": "con ver sa tion", "phonetic_analysis": "con-辅音+元音组合/kɒn/，ver-元音er组合/və/，sa-辅音+元音/seɪ/，tion-常见后缀/ʃn/", "root_affix": "前缀con-(共同)，词根vers(转)，后缀-ation(名词后缀)"}}
 Input: {word}
 Output:"""
             
@@ -206,13 +210,17 @@ Output:"""
                             'word': word.lower(),
                             'phonetic': word_data.get('phonetic', ''),
                             'translation': word_data.get('translation', ''),
-                            'syllables': syllables
+                            'syllables': syllables,
+                            'phonetic_analysis': word_data.get('phonetic_analysis', ''),
+                            'root_affix': word_data.get('root_affix', '')
                         }
                         
                         print(f"Deepseek API 获取单词信息成功: {word}")
                         print(f"  音标: {result['phonetic']}")
                         print(f"  翻译: {result['translation']}")
                         print(f"  音节: {' '.join(result['syllables'])}")
+                        print(f"  自然拼读: {result['phonetic_analysis']}")
+                        print(f"  词根词缀: {result['root_affix']}")
                         
                         return result
                     else:

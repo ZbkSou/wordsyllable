@@ -171,6 +171,8 @@ def add_word():
         if syllables_input is not None:
             translation = data.get('translation', '').strip()
             phonetic = data.get('phonetic', '').strip()
+            phonetic_analysis = data.get('phonetic_analysis', '').strip()
+            root_affix = data.get('root_affix', '').strip()
             
             # 验证必填字段
             if not translation:
@@ -189,7 +191,9 @@ def add_word():
             word = Word(
                 word=word_text,
                 translation=translation,
-                phonetic=phonetic
+                phonetic=phonetic,
+                phonetic_analysis=phonetic_analysis,
+                root_affix=root_affix
             )
             db.session.add(word)
             db.session.flush()
@@ -198,6 +202,8 @@ def add_word():
             print(f"  音标: {phonetic}")
             print(f"  翻译: {translation}")
             print(f"  音节: {' '.join(syllables_list)}")
+            print(f"  自然拼读: {phonetic_analysis}")
+            print(f"  词根词缀: {root_affix}")
         
         # 模式2：AI自动获取
         else:
@@ -216,7 +222,9 @@ def add_word():
             word = Word(
                 word=word_text,
                 translation=word_info['translation'],
-                phonetic=word_info['phonetic']
+                phonetic=word_info['phonetic'],
+                phonetic_analysis=word_info.get('phonetic_analysis', ''),
+                root_affix=word_info.get('root_affix', '')
             )
             db.session.add(word)
             db.session.flush()
@@ -472,7 +480,9 @@ def lookup_word():
             word = Word(
                 word=word_text,
                 translation=word_info['translation'],
-                phonetic=word_info['phonetic']
+                phonetic=word_info['phonetic'],
+                phonetic_analysis=word_info.get('phonetic_analysis', ''),
+                root_affix=word_info.get('root_affix', '')
             )
             db.session.add(word)
             db.session.flush()
@@ -506,6 +516,8 @@ def lookup_word():
             print(f"  音标: {word.phonetic}")
             print(f"  翻译: {word.translation}")
             print(f"  音节: {' '.join(syllables_list)}")
+            print(f"  自然拼读: {word.phonetic_analysis}")
+            print(f"  词根词缀: {word.root_affix}")
             
             return jsonify({
                 'message': '单词不存在，已自动添加（AI自动获取）',
@@ -543,6 +555,82 @@ def list_words():
         
     except Exception as e:
         return jsonify({'error': f'获取单词列表失败: {str(e)}'}), 500
+
+
+@app.route('/api/syllables/words', methods=['GET'])
+@jwt_required()
+def get_words_by_syllable():
+    """
+    根据音节查询包含该音节的所有单词
+    不记录查询次数，支持分页
+    
+    参数：
+        syllable: 音节（必需）
+        page: 页码（可选，默认1）
+        per_page: 每页数量（可选，默认50，最小50）
+    
+    返回：
+        words: 单词列表（包含完整信息）
+        syllable: 查询的音节
+        total: 总单词数
+        page: 当前页
+        per_page: 每页数量
+        pages: 总页数
+    """
+    try:
+        syllable_text = request.args.get('syllable', '').strip().lower()
+        
+        if not syllable_text:
+            return jsonify({'error': '请提供要查询的音节'}), 400
+        
+        # 查找音节
+        syllable = Syllable.query.filter_by(syllable=syllable_text).first()
+        if not syllable:
+            return jsonify({
+                'syllable': syllable_text,
+                'words': [],
+                'total': 0,
+                'page': 1,
+                'per_page': 50,
+                'pages': 0,
+                'message': '未找到包含该音节的单词'
+            }), 200
+        
+        # 分页参数，确保最小为50
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 50, type=int)
+        
+        # 确保每页至少50条
+        if per_page < 50:
+            per_page = 50
+        
+        # 通过 WordSyllable 关联查询包含该音节的所有单词
+        # 使用 join 查询提高效率
+        word_ids_subquery = db.session.query(WordSyllable.word_id)\
+            .filter(WordSyllable.syllable_id == syllable.id)\
+            .distinct()\
+            .subquery()
+        
+        # 分页查询单词
+        pagination = Word.query\
+            .filter(Word.id.in_(word_ids_subquery))\
+            .order_by(Word.created_at.desc())\
+            .paginate(page=page, per_page=per_page, error_out=False)
+        
+        # 获取单词的完整信息
+        words = [word.to_dict() for word in pagination.items]
+        
+        return jsonify({
+            'syllable': syllable_text,
+            'words': words,
+            'total': pagination.total,
+            'page': page,
+            'per_page': per_page,
+            'pages': pagination.pages
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': f'查询失败: {str(e)}'}), 500
 
 
 # ==================== 统计相关 API ====================

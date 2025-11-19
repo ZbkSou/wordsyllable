@@ -1,0 +1,15 @@
+# Chrome 扩展临时文件
+*.crx
+*.pem
+
+# 开发工具
+.DS_Store
+Thumbs.db
+
+# 备份文件
+*.bak
+*~
+
+# 日志
+*.log
+

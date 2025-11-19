@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>单词记忆助手 - 测试页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            line-height: 1.8;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #764ba2;
+            margin-top: 30px;
+        }
+        .word {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .instruction {
+            background: #e7f3ff;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .test-section {
+            margin: 30px 0;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 8px;
+        }
+        .emoji {
+            font-size: 24px;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 单词记忆助手 Chrome 插件测试页面</h1>
+        
+        <div class="instruction">
+            <p><strong>📝 使用说明：</strong></p>
+            <ol>
+                <li>确保插件已安装并登录</li>
+                <li>选中下面的任意英文单词</li>
+                <li>右键点击选择"添加单词到记忆工具"</li>
+                <li>查看插件弹窗中的查询结果</li>
+            </ol>
+        </div>
+
+        <h2>✅ 基础单词测试</h2>
+        <div class="test-section">
+            <p>这些是常用的基础单词，用于测试基本功能：</p>
+            <p>
+                <span class="word">hello</span>
+                <span class="word">world</span>
+                <span class="word">computer</span>
+                <span class="word">program</span>
+                <span class="word">language</span>
+                <span class="word">learning</span>
+            </p>
+        </div>
+
+        <h2>📚 中等难度单词</h2>
+        <div class="test-section">
+            <p>测试多音节单词的音节分词功能：</p>
+            <p>
+                <span class="word">conversation</span>
+                <span class="word">development</span>
+                <span class="word">environment</span>
+                <span class="word">university</span>
+                <span class="word">technology</span>
+                <span class="word">information</span>
+            </p>
+        </div>
+
+        <h2>🎓 高级词汇测试</h2>
+        <div class="test-section">
+            <p>测试复杂单词和专业术语：</p>
+            <p>
+                <span class="word">comprehensive</span>
+                <span class="word">authentication</span>
+                <span class="word">infrastructure</span>
+                <span class="word">implementation</span>
+                <span class="word">optimization</span>
+                <span class="word">synchronization</span>
+            </p>
+        </div>
+
+        <h2>📖 英文段落测试</h2>
+        <div class="test-section">
+            <p>
+                The quick brown fox jumps over the lazy dog. This sentence contains every letter of the alphabet. 
+                You can select any word from this paragraph to test the extension. 
+                Try words like <strong>quick</strong>, <strong>brown</strong>, <strong>jumps</strong>, or <strong>alphabet</strong>.
+            </p>
+            <p>
+                Learning new vocabulary is an essential part of mastering a foreign language. 
+                With consistent practice and the right tools, you can significantly improve your word retention 
+                and comprehension skills.
+            </p>
+        </div>
+
+        <h2>🌟 技术术语测试</h2>
+        <div class="test-section">
+            <p>测试编程和技术相关词汇：</p>
+            <p>
+                <span class="word">algorithm</span>
+                <span class="word">database</span>
+                <span class="word">framework</span>
+                <span class="word">interface</span>
+                <span class="word">repository</span>
+                <span class="word">deployment</span>
+            </p>
+        </div>
+
+        <h2>✨ 测试检查清单</h2>
+        <div class="instruction">
+            <p><strong>确认以下功能正常：</strong></p>
+            <ul>
+                <li>✅ 右键菜单显示"添加单词到记忆工具"选项</li>
+                <li>✅ 点击后插件图标弹出窗口</li>
+                <li>✅ 显示单词的音标、翻译和音节</li>
+                <li>✅ 新单词显示"新添加"标记</li>
+                <li>✅ 已存在的单词显示"已存在"和查询次数</li>
+                <li>✅ 音节以彩色标签形式显示</li>
+                <li>✅ 可以在搜索框中直接输入单词查询</li>
+            </ul>
+        </div>
+
+        <h2>🐛 发现问题？</h2>
+        <div class="test-section">
+            <p>如果遇到问题，请检查：</p>
+            <ol>
+                <li><strong>后端服务</strong>：访问 <a href="http://localhost:5000/api/health" target="_blank">http://localhost:5000/api/health</a></li>
+                <li><strong>插件状态</strong>：在 <a href="chrome://extensions/" target="_blank">chrome://extensions/</a> 查看是否有错误</li>
+                <li><strong>登录状态</strong>：点击插件图标确认已登录</li>
+                <li><strong>控制台日志</strong>：按 F12 查看浏览器控制台是否有错误信息</li>
+            </ol>
+        </div>
+
+        <footer style="margin-top: 50px; text-align: center; color: #666; font-size: 14px;">
+            <p>📚 单词记忆助手 Chrome 插件 v1.0.0</p>
+            <p>祝你学习愉快！✨</p>
+        </footer>
+    </div>
+</body>
+</html>
+

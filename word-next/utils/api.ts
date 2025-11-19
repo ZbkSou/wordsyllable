@@ -79,6 +79,8 @@ export interface Word {
   word: string;
   translation: string;
   phonetic?: string;
+  phonetic_analysis?: string;  // 自然拼读解析
+  root_affix?: string;  // 词根词缀
   syllables: string[];
   created_at: string;
   query_count?: number;
@@ -89,6 +91,8 @@ export interface AddWordManual {
   syllables: string[];
   translation: string;
   phonetic?: string;
+  phonetic_analysis?: string;
+  root_affix?: string;
 }
 
 export interface AddWordAuto {
@@ -122,6 +126,15 @@ export interface LookupWordResponse {
   word: Word;
 }
 
+export interface SyllableWordsResponse {
+  syllable: string;
+  words: Word[];
+  total: number;
+  page: number;
+  per_page: number;
+  pages: number;
+}
+
 export const wordsAPI = {
   addWord: (data: AddWordManual | AddWordAuto) => api.post<WordResponse>('/words', data),
   getWords: (page = 1, per_page = 20) => 
@@ -130,6 +143,8 @@ export const wordsAPI = {
     api.get<WordSearchResponse>('/words/search', { params: { word } }),
   getWordById: (id: number) => api.get<{ word: Word }>(`/words/${id}`),
   lookupWord: (data: LookupWordRequest) => api.post<LookupWordResponse>('/words/lookup', data),
+  getWordsBySyllable: (syllable: string, page = 1, per_page = 50) =>
+    api.get<SyllableWordsResponse>('/syllables/words', { params: { syllable, page, per_page } }),
 };
 
 // ===== 统计相关 =====

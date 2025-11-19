@@ -49,6 +49,8 @@ class Word(db.Model):
     word = db.Column(db.String(100), unique=True, nullable=False, index=True)
     translation = db.Column(db.Text, nullable=False)
     phonetic = db.Column(db.String(200))
+    phonetic_analysis = db.Column(db.Text)  # 自然拼读解析
+    root_affix = db.Column(db.Text)  # 词根词缀
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -64,6 +66,8 @@ class Word(db.Model):
             'word': self.word,
             'translation': self.translation,
             'phonetic': self.phonetic,
+            'phonetic_analysis': self.phonetic_analysis,
+            'root_affix': self.root_affix,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
         

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>单词记忆助手</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- 登录界面 -->
+  <div id="loginView" class="view">
+    <div class="header">
+      <h2>🔐 登录</h2>
+    </div>
+    <div class="content">
+      <form id="loginForm">
+        <div class="form-group">
+          <label for="username">用户名</label>
+          <input type="text" id="username" name="username" placeholder="请输入用户名" required>
+        </div>
+        <div class="form-group">
+          <label for="password">密码</label>
+          <input type="password" id="password" name="password" placeholder="请输入密码" required>
+        </div>
+        <div class="form-group">
+          <label for="apiUrl">API 地址</label>
+          <input type="text" id="apiUrl" name="apiUrl" value="http://localhost:5000" placeholder="API 服务器地址">
+        </div>
+        <button type="submit" class="btn btn-primary" id="loginBtn">登录</button>
+        <button type="button" class="btn btn-secondary" id="showRegisterBtn">注册账号</button>
+      </form>
+      <div id="loginError" class="error-message"></div>
+    </div>
+  </div>
+
+  <!-- 注册界面 -->
+  <div id="registerView" class="view" style="display: none;">
+    <div class="header">
+      <h2>📝 注册</h2>
+    </div>
+    <div class="content">
+      <form id="registerForm">
+        <div class="form-group">
+          <label for="regUsername">用户名</label>
+          <input type="text" id="regUsername" name="username" placeholder="请输入用户名" required>
+        </div>
+        <div class="form-group">
+          <label for="regEmail">邮箱</label>
+          <input type="email" id="regEmail" name="email" placeholder="请输入邮箱" required>
+        </div>
+        <div class="form-group">
+          <label for="regPassword">密码</label>
+          <input type="password" id="regPassword" name="password" placeholder="请输入密码" required>
+        </div>
+        <button type="submit" class="btn btn-primary" id="registerBtn">注册</button>
+        <button type="button" class="btn btn-secondary" id="backToLoginBtn">返回登录</button>
+      </form>
+      <div id="registerError" class="error-message"></div>
+    </div>
+  </div>
+
+  <!-- 主界面 -->
+  <div id="mainView" class="view" style="display: none;">
+    <div class="header">
+      <h2>📚 单词记忆助手</h2>
+      <div class="user-info">
+        <span id="userDisplay"></span>
+        <button id="logoutBtn" class="btn-icon" title="退出登录">🚪</button>
+      </div>
+    </div>
+
+    <!-- 搜索框 -->
+    <div class="search-section">
+      <form id="searchForm">
+        <input type="text" id="searchInput" placeholder="输入单词查询..." class="search-input">
+        <button type="submit" class="btn btn-primary btn-sm">查询</button>
+      </form>
+    </div>
+
+    <!-- 加载状态 -->
+    <div id="loading" class="loading" style="display: none;">
+      <div class="spinner"></div>
+      <p>查询中...</p>
+    </div>
+
+    <!-- 单词详情 -->
+    <div id="wordDetail" class="word-detail" style="display: none;">
+      <div class="word-header">
+        <h3 id="wordText" class="word-text"></h3>
+        <span id="wordAction" class="action-badge"></span>
+      </div>
+      
+      <div class="word-info">
+        <div class="info-row">
+          <span class="label">音标：</span>
+          <span id="wordPhonetic" class="phonetic"></span>
+        </div>
+        <div class="info-row">
+          <span class="label">翻译：</span>
+          <span id="wordTranslation"></span>
+        </div>
+        <div class="info-row">
+          <span class="label">音节：</span>
+          <div id="wordSyllables" class="syllables"></div>
+        </div>
+        <div class="info-row" id="phoneticAnalysisRow" style="display: none;">
+          <span class="label">自然拼读：</span>
+          <span id="wordPhoneticAnalysis" class="phonetic-analysis"></span>
+        </div>
+        <div class="info-row" id="rootAffixRow" style="display: none;">
+          <span class="label">词根词缀：</span>
+          <span id="wordRootAffix" class="root-affix"></span>
+        </div>
+        <div class="info-row" id="queryCountRow" style="display: none;">
+          <span class="label">查询次数：</span>
+          <span id="wordQueryCount"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 提示信息 -->
+    <div id="emptyState" class="empty-state">
+      <p>💡 使用方法：</p>
+      <ol>
+        <li>在网页上选中任意英文单词</li>
+        <li>右键选择"添加单词到记忆工具"</li>
+        <li>查询结果将显示在这里</li>
+      </ol>
+      <p>或者在上方输入框直接查询单词</p>
+    </div>
+
+    <!-- 错误信息 -->
+    <div id="errorMessage" class="error-message" style="display: none;"></div>
+  </div>
+
+  <script src="api.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
+
