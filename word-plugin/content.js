@@ -14,3 +14,4 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 console.log('单词记忆助手 Content Script 已加载');
 
+

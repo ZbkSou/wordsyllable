@@ -126,6 +126,18 @@ export interface LookupWordResponse {
   word: Word;
 }
 
+// 公开查询接口（无需登录）
+export interface PublicLookupRequest {
+  word: string;
+  code?: string;
+}
+
+export interface PublicLookupResponse {
+  message: string;
+  action: 'queried' | 'added' | 'not_found';
+  word: Word | null;
+}
+
 export interface SyllableWordsResponse {
   syllable: string;
   words: Word[];
@@ -145,6 +157,9 @@ export const wordsAPI = {
   lookupWord: (data: LookupWordRequest) => api.post<LookupWordResponse>('/words/lookup', data),
   getWordsBySyllable: (syllable: string, page = 1, per_page = 50) =>
     api.get<SyllableWordsResponse>('/syllables/words', { params: { syllable, page, per_page } }),
+  // 公开查询接口（无需登录）
+  publicLookupWord: (data: PublicLookupRequest) => 
+    api.post<PublicLookupResponse>('/words/public-lookup', data),
 };
 
 // ===== 统计相关 =====
