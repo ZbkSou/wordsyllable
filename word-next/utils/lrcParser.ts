@@ -178,7 +178,7 @@ export function buildNCEUrl(book: number, filename: string, type: 'lrc' | 'mp3')
  */
 export function buildNCEDirectUrl(book: number, filename: string, type: 'lrc' | 'mp3'): string {
   const encodedFilename = encodeURIComponent(filename);
-  return `https://nce.szsyw.cn/NCE${book}/${encodedFilename}.${type}`;
+  return `https://nce.ichochy.com/NCE${book}/${encodedFilename}.${type}`;
 }
 
 /**
