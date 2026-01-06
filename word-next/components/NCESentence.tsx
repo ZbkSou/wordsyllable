@@ -1,6 +1,6 @@
 'use client';
 
-import { forwardRef, useCallback, useState } from 'react';
+import { forwardRef, useCallback, useState, useRef, useEffect } from 'react';
 import { LrcLine, formatTime } from '@/utils/lrcParser';
 
 type HideMode = 'none' | 'english' | 'chinese' | 'both';
@@ -21,8 +21,94 @@ const NCESentence = forwardRef<HTMLDivElement, NCESentenceProps>(
   ({ line, index, isActive, hideMode, status, onPlay, onStatusChange, onTextSelect }, ref) => {
     const [showEnglish, setShowEnglish] = useState(false);
     const [showChinese, setShowChinese] = useState(false);
+    const [longPressWord, setLongPressWord] = useState<{ word: string; x: number; y: number } | null>(null);
+    
+    const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+    const touchStartPos = useRef<{ x: number; y: number } | null>(null);
 
-    // 处理文本选择
+    // 清理定时器
+    useEffect(() => {
+      return () => {
+        if (longPressTimer.current) {
+          clearTimeout(longPressTimer.current);
+        }
+      };
+    }, []);
+
+    // 从触摸位置获取单词
+    const getWordAtPosition = useCallback((x: number, y: number): string | null => {
+      const element = document.elementFromPoint(x, y);
+      if (!element) return null;
+      
+      // 获取文本节点
+      const range = document.caretRangeFromPoint?.(x, y);
+      if (!range) return null;
+      
+      const textContent = range.startContainer.textContent;
+      if (!textContent) return null;
+      
+      // 找到单词边界
+      const offset = range.startOffset;
+      let start = offset;
+      let end = offset;
+      
+      // 向前找单词开始
+      while (start > 0 && /[a-zA-Z'-]/.test(textContent[start - 1])) {
+        start--;
+      }
+      
+      // 向后找单词结束
+      while (end < textContent.length && /[a-zA-Z'-]/.test(textContent[end])) {
+        end++;
+      }
+      
+      const word = textContent.slice(start, end).trim();
+      return /^[a-zA-Z'-]+$/.test(word) ? word : null;
+    }, []);
+
+    // 长按开始（触摸）
+    const handleTouchStart = useCallback((e: React.TouchEvent) => {
+      const touch = e.touches[0];
+      touchStartPos.current = { x: touch.clientX, y: touch.clientY };
+      
+      longPressTimer.current = setTimeout(() => {
+        const word = getWordAtPosition(touch.clientX, touch.clientY);
+        if (word) {
+          e.preventDefault();
+          setLongPressWord({ word, x: touch.clientX, y: touch.clientY });
+          onTextSelect(word, touch.clientX, touch.clientY);
+          // 震动反馈（如果支持）
+          if (navigator.vibrate) {
+            navigator.vibrate(50);
+          }
+        }
+      }, 500); // 500ms 长按
+    }, [getWordAtPosition, onTextSelect]);
+
+    // 触摸移动 - 取消长按
+    const handleTouchMove = useCallback((e: React.TouchEvent) => {
+      if (longPressTimer.current && touchStartPos.current) {
+        const touch = e.touches[0];
+        const dx = Math.abs(touch.clientX - touchStartPos.current.x);
+        const dy = Math.abs(touch.clientY - touchStartPos.current.y);
+        // 移动超过 10px 取消长按
+        if (dx > 10 || dy > 10) {
+          clearTimeout(longPressTimer.current);
+          longPressTimer.current = null;
+        }
+      }
+    }, []);
+
+    // 触摸结束
+    const handleTouchEnd = useCallback(() => {
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
+        longPressTimer.current = null;
+      }
+      touchStartPos.current = null;
+    }, []);
+
+    // 桌面端：处理文本选择
     const handleMouseUp = useCallback((e: React.MouseEvent) => {
       const selection = window.getSelection();
       const selectedText = selection?.toString().trim();
@@ -30,7 +116,6 @@ const NCESentence = forwardRef<HTMLDivElement, NCESentenceProps>(
       if (selectedText && selectedText.length > 0 && selectedText.length < 50) {
         // 只处理英文单词
         if (/^[a-zA-Z'-]+$/.test(selectedText)) {
-          const rect = (e.target as HTMLElement).getBoundingClientRect();
           onTextSelect(selectedText, e.clientX, e.clientY);
         }
       }
@@ -47,7 +132,7 @@ const NCESentence = forwardRef<HTMLDivElement, NCESentenceProps>(
     return (
       <div
         ref={ref}
-        className={`group relative p-4 rounded-xl transition-all duration-300 cursor-pointer ${
+        className={`group relative p-3 sm:p-4 rounded-xl transition-all duration-300 cursor-pointer ${
           isActive
             ? 'bg-purple-600/30 border-2 border-purple-500 shadow-lg shadow-purple-500/20'
             : 'bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20'
@@ -55,19 +140,19 @@ const NCESentence = forwardRef<HTMLDivElement, NCESentenceProps>(
         onClick={onPlay}
       >
         {/* 句子编号和时间 */}
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+          <div className="flex items-center gap-2 sm:gap-3">
             <span className={`text-xs font-mono ${isActive ? 'text-purple-300' : 'text-white/40'}`}>
               {String(index + 1).padStart(2, '0')}
             </span>
-            <span className={`text-xs font-mono ${isActive ? 'text-purple-300' : 'text-white/40'}`}>
+            <span className={`text-xs font-mono hidden sm:inline ${isActive ? 'text-purple-300' : 'text-white/40'}`}>
               {line.startTime}
             </span>
           </div>
 
           {/* 状态按钮（仅在隐藏模式下显示） */}
           {(hideMode !== 'none') && (
-            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-1 sm:gap-2" onClick={(e) => e.stopPropagation()}>
               <button
                 onClick={() => onStatusChange('understood')}
                 className={`px-2 py-1 text-xs rounded transition-colors ${
@@ -77,7 +162,7 @@ const NCESentence = forwardRef<HTMLDivElement, NCESentenceProps>(
                 }`}
                 title="听懂了"
               >
-                ✓ 听懂
+                ✓
               </button>
               <button
                 onClick={() => onStatusChange('not-understood')}
@@ -88,7 +173,7 @@ const NCESentence = forwardRef<HTMLDivElement, NCESentenceProps>(
                 }`}
                 title="没听懂"
               >
-                ✗ 没懂
+                ✗
               </button>
             </div>
           )}
@@ -98,10 +183,13 @@ const NCESentence = forwardRef<HTMLDivElement, NCESentenceProps>(
         <div className="mb-2">
           {shouldShowEnglish ? (
             <p
-              className={`text-lg leading-relaxed select-text ${
+              className={`text-base sm:text-lg leading-relaxed select-text ${
                 isActive ? 'text-white font-medium' : 'text-white/90'
               }`}
               onMouseUp={handleMouseUp}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
             >
               {line.english}
             </p>

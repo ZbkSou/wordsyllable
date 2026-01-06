@@ -5,8 +5,8 @@ import { NextRequest, NextResponse } from 'next/server';
  * 解决 CORS 跨域问题
  * 
  * 使用方式:
- * GET /api/nce/proxy?book=2&filename=02-Breakfast%20or%20Lunch&type=lrc
- * GET /api/nce/proxy?book=2&filename=02-Breakfast%20or%20Lunch&type=mp3
+ * GET /nce/proxy?book=2&filename=02-Breakfast%20or%20Lunch&type=lrc
+ * GET /nce/proxy?book=2&filename=02-Breakfast%20or%20Lunch&type=mp3
  */
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;

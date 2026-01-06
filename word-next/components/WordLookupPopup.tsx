@@ -27,10 +27,21 @@ export default function WordLookupPopup({ word, position, onClose, isLoggedIn = 
   // 计算弹窗位置（只在客户端执行）
   useEffect(() => {
     if (mounted && typeof window !== 'undefined') {
-      setAdjustedPosition({
-        left: Math.min(position.x, window.innerWidth - 380),
-        top: Math.min(position.y + 10, window.innerHeight - 400),
-      });
+      const isMobile = window.innerWidth < 640;
+      
+      if (isMobile) {
+        // 移动端：居中显示
+        setAdjustedPosition({
+          left: (window.innerWidth - 320) / 2,
+          top: Math.min(position.y + 10, window.innerHeight - 350),
+        });
+      } else {
+        // 桌面端：跟随点击位置
+        setAdjustedPosition({
+          left: Math.min(position.x, window.innerWidth - 380),
+          top: Math.min(position.y + 10, window.innerHeight - 400),
+        });
+      }
     }
   }, [position, mounted]);
 
@@ -107,11 +118,17 @@ export default function WordLookupPopup({ word, position, onClose, isLoggedIn = 
   };
 
   return (
-    <div
-      ref={popupRef}
-      style={popupStyle}
-      className="w-80 bg-slate-900/95 backdrop-blur-xl border border-white/20 rounded-xl shadow-2xl overflow-hidden animate-fade-in"
-    >
+    <>
+      {/* 移动端背景遮罩 */}
+      <div 
+        className="sm:hidden fixed inset-0 bg-black/50 z-[99]"
+        onClick={onClose}
+      />
+      <div
+        ref={popupRef}
+        style={popupStyle}
+        className="w-[320px] sm:w-80 bg-slate-900/95 backdrop-blur-xl border border-white/20 rounded-xl shadow-2xl overflow-hidden animate-fade-in"
+      >
       {/* 头部 */}
       <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -212,10 +229,11 @@ export default function WordLookupPopup({ word, position, onClose, isLoggedIn = 
       {/* 底部提示 */}
       <div className="px-4 py-2 bg-white/5 border-t border-white/10 text-center">
         <p className="text-white/30 text-xs">
-          {isLoggedIn ? '查询已记录' : '游客模式（不记录查询）'} · Esc 关闭
+          {isLoggedIn ? '查询已记录' : '游客模式'} · <span className="hidden sm:inline">Esc</span><span className="sm:hidden">点击外部</span>关闭
         </p>
       </div>
     </div>
+    </>
   );
 }
 

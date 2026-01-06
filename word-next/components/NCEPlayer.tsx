@@ -320,12 +320,12 @@ export default function NCEPlayer({ book, lesson, onBack, isLoggedIn = false }: 
       />
 
       {/* 课程信息 */}
-      <div className="mb-6 p-6 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10">
-        <h2 className="text-2xl font-bold text-white mb-2">{lesson.title}</h2>
+      <div className="mb-4 sm:mb-6 p-4 sm:p-6 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10">
+        <h2 className="text-lg sm:text-2xl font-bold text-white mb-1 sm:mb-2">{lesson.title}</h2>
         {lrcData?.metadata.title && (
-          <p className="text-white/60">{lrcData.metadata.title}</p>
+          <p className="text-white/60 text-sm sm:text-base">{lrcData.metadata.title}</p>
         )}
-        <div className="flex items-center gap-4 mt-4 text-sm text-white/50">
+        <div className="flex items-center gap-2 sm:gap-4 mt-2 sm:mt-4 text-xs sm:text-sm text-white/50">
           <span>第 {book} 册</span>
           <span>•</span>
           <span>{lrcData?.lines.length || 0} 句</span>
@@ -335,124 +335,119 @@ export default function NCEPlayer({ book, lesson, onBack, isLoggedIn = false }: 
       </div>
 
       {/* 控制面板 */}
-      <div className="mb-6 p-4 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 space-y-4">
+      <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 space-y-3 sm:space-y-4">
         {/* 进度条 */}
-        <div className="flex items-center gap-4">
-          <span className="text-white/60 text-sm w-14 text-right">{formatTime(currentTime)}</span>
+        <div className="flex items-center gap-2 sm:gap-4">
+          <span className="text-white/60 text-xs sm:text-sm w-10 sm:w-14 text-right">{formatTime(currentTime)}</span>
           <input
             type="range"
             min={0}
             max={duration || 100}
             value={currentTime}
             onChange={handleSeek}
-            className="flex-1 h-2 bg-white/20 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-purple-500 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
+            className="flex-1 h-2 bg-white/20 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 sm:[&::-webkit-slider-thumb]:w-4 sm:[&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-purple-500 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
           />
-          <span className="text-white/60 text-sm w-14">{formatTime(duration)}</span>
+          <span className="text-white/60 text-xs sm:text-sm w-10 sm:w-14">{formatTime(duration)}</span>
         </div>
 
-        {/* 播放控制 */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {/* 上一句 */}
-            <button
-              onClick={prevSentence}
-              className="w-10 h-10 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors"
-              title="上一句 (A/←)"
-            >
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
-              </svg>
-            </button>
+        {/* 播放控制 - 移动端简化 */}
+        <div className="flex items-center justify-center gap-2 sm:gap-4">
+          {/* 上一句 */}
+          <button
+            onClick={prevSentence}
+            className="w-10 h-10 sm:w-10 sm:h-10 flex items-center justify-center text-white/70 hover:text-white active:bg-white/20 hover:bg-white/10 rounded-full transition-colors"
+            title="上一句"
+          >
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
+            </svg>
+          </button>
 
-            {/* 播放/暂停 */}
-            <button
-              onClick={togglePlay}
-              className="w-14 h-14 flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white rounded-full transition-colors shadow-lg shadow-purple-500/30"
-              title="播放/暂停 (Space)"
-            >
-              {isPlaying ? (
-                <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-                </svg>
-              ) : (
-                <svg className="w-7 h-7 ml-1" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-              )}
-            </button>
-
-            {/* 下一句 */}
-            <button
-              onClick={nextSentence}
-              className="w-10 h-10 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors"
-              title="下一句 (D/→)"
-            >
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
+          {/* 播放/暂停 */}
+          <button
+            onClick={togglePlay}
+            className="w-14 h-14 sm:w-14 sm:h-14 flex items-center justify-center bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white rounded-full transition-colors shadow-lg shadow-purple-500/30"
+            title="播放/暂停"
+          >
+            {isPlaying ? (
+              <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
               </svg>
-            </button>
-
-            {/* 重播当前句 */}
-            <button
-              onClick={() => currentLineIndex >= 0 && seekToSentence(currentLineIndex)}
-              className="w-10 h-10 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors"
-              title="重播当前句 (R)"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            ) : (
+              <svg className="w-7 h-7 ml-1" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z" />
               </svg>
-            </button>
+            )}
+          </button>
+
+          {/* 下一句 */}
+          <button
+            onClick={nextSentence}
+            className="w-10 h-10 sm:w-10 sm:h-10 flex items-center justify-center text-white/70 hover:text-white active:bg-white/20 hover:bg-white/10 rounded-full transition-colors"
+            title="下一句"
+          >
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
+            </svg>
+          </button>
+
+          {/* 重播当前句 */}
+          <button
+            onClick={() => currentLineIndex >= 0 && seekToSentence(currentLineIndex)}
+            className="w-10 h-10 sm:w-10 sm:h-10 flex items-center justify-center text-white/70 hover:text-white active:bg-white/20 hover:bg-white/10 rounded-full transition-colors"
+            title="重播当前句"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
+        </div>
+
+        {/* 播放速度 - 移动端水平滚动 */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          <span className="text-white/50 text-xs sm:text-sm whitespace-nowrap">速度</span>
+          <div className="flex gap-1">
+            {[0.5, 0.75, 1, 1.25, 1.5, 2].map((rate) => (
+              <button
+                key={rate}
+                onClick={() => handleRateChange(rate)}
+                className={`px-2 sm:px-2 py-1 text-xs rounded transition-colors whitespace-nowrap ${
+                  playbackRate === rate
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-white/10 text-white/60 hover:bg-white/20 hover:text-white'
+                }`}
+              >
+                {rate}x
+              </button>
+            ))}
           </div>
-
-          {/* 右侧控制 */}
-          <div className="flex items-center gap-4">
-            {/* 播放速度 */}
-            <div className="flex items-center gap-2">
-              <span className="text-white/50 text-sm">速度</span>
-              <div className="flex gap-1">
-                {[0.5, 0.75, 1, 1.25, 1.5, 2].map((rate) => (
-                  <button
-                    key={rate}
-                    onClick={() => handleRateChange(rate)}
-                    className={`px-2 py-1 text-xs rounded transition-colors ${
-                      playbackRate === rate
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-white/10 text-white/60 hover:bg-white/20 hover:text-white'
-                    }`}
-                  >
-                    {rate}x
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* 音量 */}
-            <div className="flex items-center gap-2">
-              <svg className="w-5 h-5 text-white/50" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
-              </svg>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.1}
-                value={volume}
-                onChange={handleVolumeChange}
-                className="w-20 h-1 bg-white/20 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
-              />
-            </div>
+          
+          {/* 音量 - 仅桌面端显示 */}
+          <div className="hidden sm:flex items-center gap-2 ml-auto">
+            <svg className="w-5 h-5 text-white/50" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+            </svg>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.1}
+              value={volume}
+              onChange={handleVolumeChange}
+              className="w-20 h-1 bg-white/20 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
+            />
           </div>
         </div>
 
-        {/* 播放模式和显示选项 */}
-        <div className="flex items-center justify-between pt-2 border-t border-white/10">
+        {/* 播放模式和显示选项 - 移动端改为两行 */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 pt-2 border-t border-white/10">
           {/* 播放模式 */}
-          <div className="flex items-center gap-2">
-            <span className="text-white/50 text-sm">模式</span>
+          <div className="flex items-center gap-2 overflow-x-auto">
+            <span className="text-white/50 text-xs sm:text-sm whitespace-nowrap">模式</span>
             <div className="flex gap-1">
               <button
                 onClick={() => setPlayMode('sequential')}
-                className={`px-3 py-1 text-xs rounded transition-colors ${
+                className={`px-2 sm:px-3 py-1 text-xs rounded transition-colors whitespace-nowrap ${
                   playMode === 'sequential'
                     ? 'bg-purple-600 text-white'
                     : 'bg-white/10 text-white/60 hover:bg-white/20'
@@ -462,34 +457,34 @@ export default function NCEPlayer({ book, lesson, onBack, isLoggedIn = false }: 
               </button>
               <button
                 onClick={() => setPlayMode('single-loop')}
-                className={`px-3 py-1 text-xs rounded transition-colors ${
+                className={`px-2 sm:px-3 py-1 text-xs rounded transition-colors whitespace-nowrap ${
                   playMode === 'single-loop'
                     ? 'bg-purple-600 text-white'
                     : 'bg-white/10 text-white/60 hover:bg-white/20'
                 }`}
               >
-                单句循环
+                单句
               </button>
               <button
                 onClick={() => setPlayMode('all-loop')}
-                className={`px-3 py-1 text-xs rounded transition-colors ${
+                className={`px-2 sm:px-3 py-1 text-xs rounded transition-colors whitespace-nowrap ${
                   playMode === 'all-loop'
                     ? 'bg-purple-600 text-white'
                     : 'bg-white/10 text-white/60 hover:bg-white/20'
                 }`}
               >
-                整篇循环
+                循环
               </button>
             </div>
           </div>
 
           {/* 显示模式 */}
-          <div className="flex items-center gap-2">
-            <span className="text-white/50 text-sm">显示</span>
+          <div className="flex items-center gap-2 overflow-x-auto">
+            <span className="text-white/50 text-xs sm:text-sm whitespace-nowrap">显示</span>
             <div className="flex gap-1">
               <button
                 onClick={() => setHideMode('none')}
-                className={`px-3 py-1 text-xs rounded transition-colors ${
+                className={`px-2 sm:px-3 py-1 text-xs rounded transition-colors whitespace-nowrap ${
                   hideMode === 'none'
                     ? 'bg-purple-600 text-white'
                     : 'bg-white/10 text-white/60 hover:bg-white/20'
@@ -499,47 +494,47 @@ export default function NCEPlayer({ book, lesson, onBack, isLoggedIn = false }: 
               </button>
               <button
                 onClick={() => setHideMode('chinese')}
-                className={`px-3 py-1 text-xs rounded transition-colors ${
+                className={`px-2 sm:px-3 py-1 text-xs rounded transition-colors whitespace-nowrap ${
                   hideMode === 'chinese'
                     ? 'bg-purple-600 text-white'
                     : 'bg-white/10 text-white/60 hover:bg-white/20'
                 }`}
               >
-                隐藏中文
+                隐中
               </button>
               <button
                 onClick={() => setHideMode('english')}
-                className={`px-3 py-1 text-xs rounded transition-colors ${
+                className={`px-2 sm:px-3 py-1 text-xs rounded transition-colors whitespace-nowrap ${
                   hideMode === 'english'
                     ? 'bg-purple-600 text-white'
                     : 'bg-white/10 text-white/60 hover:bg-white/20'
                 }`}
               >
-                隐藏英文
+                隐英
               </button>
               <button
                 onClick={() => setHideMode('both')}
-                className={`px-3 py-1 text-xs rounded transition-colors ${
+                className={`px-2 sm:px-3 py-1 text-xs rounded transition-colors whitespace-nowrap ${
                   hideMode === 'both'
                     ? 'bg-purple-600 text-white'
                     : 'bg-white/10 text-white/60 hover:bg-white/20'
                 }`}
               >
-                纯听力
+                纯听
               </button>
             </div>
+            
+            {/* 自动滚动 */}
+            <label className="flex items-center gap-1 sm:gap-2 cursor-pointer ml-auto">
+              <input
+                type="checkbox"
+                checked={autoScroll}
+                onChange={(e) => setAutoScroll(e.target.checked)}
+                className="w-4 h-4 rounded border-white/20 bg-white/10 text-purple-600 focus:ring-purple-500"
+              />
+              <span className="text-white/50 text-xs sm:text-sm whitespace-nowrap">滚动</span>
+            </label>
           </div>
-
-          {/* 自动滚动 */}
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={autoScroll}
-              onChange={(e) => setAutoScroll(e.target.checked)}
-              className="w-4 h-4 rounded border-white/20 bg-white/10 text-purple-600 focus:ring-purple-500"
-            />
-            <span className="text-white/50 text-sm">自动滚动</span>
-          </label>
         </div>
       </div>
 
@@ -571,12 +566,17 @@ export default function NCEPlayer({ book, lesson, onBack, isLoggedIn = false }: 
         />
       )}
 
-      {/* 快捷键提示 */}
-      <div className="fixed bottom-20 right-4 text-white/30 text-xs space-y-1">
+      {/* 快捷键提示 - 仅桌面端显示 */}
+      <div className="hidden sm:block fixed bottom-20 right-4 text-white/30 text-xs space-y-1">
         <p>Space: 播放/暂停</p>
         <p>←/A: 上一句</p>
         <p>→/D: 下一句</p>
         <p>R: 重播当前句</p>
+      </div>
+
+      {/* 移动端操作提示 */}
+      <div className="sm:hidden fixed bottom-20 left-4 right-4 text-center text-white/30 text-xs">
+        <p>💡 长按单词可查询释义</p>
       </div>
     </div>
   );

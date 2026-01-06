@@ -3,7 +3,8 @@
 """
 import os
 from datetime import datetime, timedelta
-from flask import Flask, request, jsonify
+import requests
+from flask import Flask, request, jsonify, Response
 from flask_jwt_extended import (
     JWTManager, create_access_token, jwt_required, get_jwt_identity
 )
@@ -889,6 +890,83 @@ def get_stats_overview():
         
     except Exception as e:
         return jsonify({'error': f'获取统计概览失败: {str(e)}'}), 500
+
+
+# ==================== NCE 资源代理 ====================
+
+NCE_BASE_URL = 'https://nce.ichochy.com'
+
+# https://nce.ichochy.com/NCE2/01%EF%BC%8DA%20Private%20Conversation.mp3
+@app.route('/api/nce/proxy', methods=['GET'])
+def nce_proxy():
+    """
+    NCE 资源代理接口
+    转发 LRC 和 MP3 文件请求，解决 CORS 问题
+    
+    参数：
+        book: 课本编号（1-4）
+        filename: 文件名
+        type: 文件类型（lrc 或 mp3）
+    
+    示例：
+        /api/nce/proxy?book=2&filename=01－A%20Private%20Conversation&type=lrc
+    """
+    try:
+        book = request.args.get('book', '').strip()
+        filename = request.args.get('filename', '').strip()
+        file_type = request.args.get('type', '').strip().lower()
+        
+        # 参数验证
+        if not book or not filename or not file_type:
+            return jsonify({'error': '缺少必要参数: book, filename, type'}), 400
+        
+        if file_type not in ['lrc', 'mp3']:
+            return jsonify({'error': 'type 必须是 lrc 或 mp3'}), 400
+        
+        if book not in ['1', '2', '3', '4']:
+            return jsonify({'error': 'book 必须是 1-4'}), 400
+        
+        # 构建外部 URL
+        external_url = f"{NCE_BASE_URL}/NCE{book}/{filename}.{file_type}"
+        print(f"[NCE代理] 请求: {external_url}")
+        
+        # 请求外部资源
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        
+        response = requests.get(external_url, headers=headers, timeout=30, stream=True)
+        
+        if response.status_code != 200:
+            print(f"[NCE代理] 外部请求失败: {response.status_code}")
+            return jsonify({'error': f'资源加载失败: {response.status_code}'}), response.status_code
+        
+        # 设置响应 Content-Type
+        if file_type == 'lrc':
+            content_type = 'text/plain; charset=utf-8'
+        else:
+            content_type = 'audio/mpeg'
+        
+        # 返回代理响应
+        return Response(
+            response.content,
+            status=200,
+            headers={
+                'Content-Type': content_type,
+                'Cache-Control': 'public, max-age=86400',  # 缓存24小时
+                'Access-Control-Allow-Origin': '*'
+            }
+        )
+        
+    except requests.Timeout:
+        print("[NCE代理] 请求超时")
+        return jsonify({'error': '请求超时'}), 504
+    except requests.RequestException as e:
+        print(f"[NCE代理] 请求异常: {e}")
+        return jsonify({'error': f'请求失败: {str(e)}'}), 500
+    except Exception as e:
+        print(f"[NCE代理] 错误: {e}")
+        return jsonify({'error': f'代理失败: {str(e)}'}), 500
 
 
 # ==================== 健康检查 ====================
