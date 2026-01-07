@@ -163,13 +163,20 @@ export function getNextLineTime(lines: LrcLine[], currentIndex: number): number 
 }
 
 /**
- * 构建 NCE 资源 URL（通过 Flask 后端代理）
- * 使用后端 API 代理解决 CORS 问题
+ * 构建 NCE 资源 URL
+ * - book=2 时使用本地 public/NCE2 目录的文件
+ * - 其他册别使用 Flask 后端代理
  */
 export function buildNCEUrl(book: number, filename: string, type: 'lrc' | 'mp3'): string {
   const encodedFilename = encodeURIComponent(filename);
+  
+  // 第2册使用本地文件
+  if (book === 2) {
+    return `/NCE2/${encodedFilename}.${type}`;
+  }
+  
+  // 其他册别使用 Flask 后端代理接口
   const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-  // 使用 Flask 后端代理接口，避免 CORS 问题
   return `${apiBase}/nce/proxy?book=${book}&filename=${encodedFilename}&type=${type}`;
 }
 

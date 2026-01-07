@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Lesson } from '@/app/nce/page';
-import { parseLrc, ParsedLrc, LrcLine, formatTime, buildNCEUrl, getCurrentLineIndex } from '@/utils/lrcParser';
+import { parseLrc, ParsedLrc, formatTime, buildNCEUrl, getCurrentLineIndex } from '@/utils/lrcParser';
 import NCESentence from './NCESentence';
 import WordLookupPopup from './WordLookupPopup';
 
@@ -16,43 +16,28 @@ interface NCEPlayerProps {
 type PlayMode = 'sequential' | 'single-loop' | 'all-loop';
 type HideMode = 'none' | 'english' | 'chinese' | 'both';
 
-interface SentenceStatus {
-  [index: number]: 'understood' | 'not-understood' | undefined;
-}
-
 export default function NCEPlayer({ book, lesson, onBack, isLoggedIn = false }: NCEPlayerProps) {
-  // 播放器状态
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(1);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [playMode, setPlayMode] = useState<PlayMode>('sequential');
   
-  // LRC 状态
   const [lrcData, setLrcData] = useState<ParsedLrc | null>(null);
   const [currentLineIndex, setCurrentLineIndex] = useState(-1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
-  // 显示模式
   const [hideMode, setHideMode] = useState<HideMode>('none');
   const [autoScroll, setAutoScroll] = useState(true);
   
-  // 句子状态（听懂/没听懂）
-  const [sentenceStatus, setSentenceStatus] = useState<SentenceStatus>({});
-  
-  // 单词查询
   const [selectedWord, setSelectedWord] = useState('');
   const [lookupPosition, setLookupPosition] = useState({ x: 0, y: 0 });
   const [showLookup, setShowLookup] = useState(false);
   
-  // Refs
   const audioRef = useRef<HTMLAudioElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const sentenceRefs = useRef<(HTMLDivElement | null)[]>([]);
 
-  // 音频URL
   const audioUrl = buildNCEUrl(book, lesson.filename, 'mp3');
   const lrcUrl = buildNCEUrl(book, lesson.filename, 'lrc');
 
@@ -63,39 +48,21 @@ export default function NCEPlayer({ book, lesson, onBack, isLoggedIn = false }: 
       setError('');
       
       try {
-        console.log('正在加载 LRC:', lrcUrl);
         const response = await fetch(lrcUrl);
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('LRC 加载失败，状态码:', response.status, errorText);
-          throw new Error(`加载课文失败: ${response.status}`);
-        }
+        if (!response.ok) throw new Error('加载课文失败');
         
         const text = await response.text();
-        console.log('LRC 原始内容长度:', text.length);
-        console.log('LRC 前200字符:', text.substring(0, 200));
-        
-        // 检查是否是 JSON 错误响应
         if (text.startsWith('{') && text.includes('"error"')) {
-          const errorData = JSON.parse(text);
-          throw new Error(errorData.error || '加载课文失败');
+          throw new Error(JSON.parse(text).error || '加载失败');
         }
         
         const parsed = parseLrc(text);
-        console.log('解析结果 - 元数据:', parsed.metadata);
-        console.log('解析结果 - 行数:', parsed.lines.length);
-        
-        if (parsed.lines.length === 0) {
-          console.warn('解析结果为空，原始内容:', text);
-          throw new Error('课文解析失败，请检查格式');
-        }
+        if (parsed.lines.length === 0) throw new Error('课文解析失败');
         
         setLrcData(parsed);
         sentenceRefs.current = new Array(parsed.lines.length).fill(null);
       } catch (err) {
-        console.error('加载 LRC 失败:', err);
-        setError(err instanceof Error ? err.message : '加载课文失败，请稍后重试');
+        setError(err instanceof Error ? err.message : '加载失败');
       } finally {
         setLoading(false);
       }
@@ -104,60 +71,44 @@ export default function NCEPlayer({ book, lesson, onBack, isLoggedIn = false }: 
     loadLrc();
   }, [lrcUrl]);
 
-  // 更新当前行索引
+  // 更新当前行
   useEffect(() => {
     if (lrcData && lrcData.lines.length > 0) {
       const newIndex = getCurrentLineIndex(lrcData.lines, currentTime);
       if (newIndex !== currentLineIndex) {
         setCurrentLineIndex(newIndex);
-        
-        // 自动滚动到当前句子
         if (autoScroll && newIndex >= 0 && sentenceRefs.current[newIndex]) {
-          sentenceRefs.current[newIndex]?.scrollIntoView({
-            behavior: 'smooth',
-            block: 'center'
-          });
+          sentenceRefs.current[newIndex]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
       }
     }
   }, [currentTime, lrcData, currentLineIndex, autoScroll]);
 
-  // 处理句子播放结束
+  // 单句循环
   useEffect(() => {
-    if (!audioRef.current || !lrcData || !isPlaying) return;
+    if (!audioRef.current || !lrcData || !isPlaying || playMode !== 'single-loop') return;
     
-    const audio = audioRef.current;
     const lines = lrcData.lines;
-    
-    if (playMode === 'single-loop' && currentLineIndex >= 0 && currentLineIndex < lines.length) {
-      const nextLineTime = currentLineIndex < lines.length - 1 
-        ? lines[currentLineIndex + 1].time 
-        : duration;
-      
-      if (currentTime >= nextLineTime - 0.1) {
-        audio.currentTime = lines[currentLineIndex].time;
+    if (currentLineIndex >= 0 && currentLineIndex < lines.length) {
+      const nextTime = currentLineIndex < lines.length - 1 ? lines[currentLineIndex + 1].time : duration;
+      if (currentTime >= nextTime - 0.1) {
+        audioRef.current.currentTime = lines[currentLineIndex].time;
       }
     }
   }, [currentTime, currentLineIndex, playMode, lrcData, isPlaying, duration]);
 
-  // 播放控制
   const togglePlay = useCallback(() => {
     if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.pause();
-      } else {
-        audioRef.current.play();
-      }
+      if (isPlaying) audioRef.current.pause();
+      else audioRef.current.play();
       setIsPlaying(!isPlaying);
     }
   }, [isPlaying]);
 
-  // 跳转到指定句子
   const seekToSentence = useCallback((index: number) => {
     if (audioRef.current && lrcData && index >= 0 && index < lrcData.lines.length) {
       audioRef.current.currentTime = lrcData.lines[index].time;
       setCurrentLineIndex(index);
-      
       if (!isPlaying) {
         audioRef.current.play();
         setIsPlaying(true);
@@ -165,7 +116,6 @@ export default function NCEPlayer({ book, lesson, onBack, isLoggedIn = false }: 
     }
   }, [lrcData, isPlaying]);
 
-  // 进度条拖动
   const handleSeek = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const time = parseFloat(e.target.value);
     if (audioRef.current) {
@@ -174,29 +124,11 @@ export default function NCEPlayer({ book, lesson, onBack, isLoggedIn = false }: 
     }
   }, []);
 
-  // 音量调节
-  const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const vol = parseFloat(e.target.value);
-    setVolume(vol);
-    if (audioRef.current) {
-      audioRef.current.volume = vol;
-    }
-  }, []);
-
-  // 播放速度调节
   const handleRateChange = useCallback((rate: number) => {
     setPlaybackRate(rate);
-    if (audioRef.current) {
-      audioRef.current.playbackRate = rate;
-    }
+    if (audioRef.current) audioRef.current.playbackRate = rate;
   }, []);
 
-  // 更新句子状态
-  const updateSentenceStatus = useCallback((index: number, status: 'understood' | 'not-understood') => {
-    setSentenceStatus(prev => ({ ...prev, [index]: status }));
-  }, []);
-
-  // 处理文本选择
   const handleTextSelection = useCallback((word: string, x: number, y: number) => {
     if (word.trim()) {
       setSelectedWord(word.trim());
@@ -205,45 +137,17 @@ export default function NCEPlayer({ book, lesson, onBack, isLoggedIn = false }: 
     }
   }, []);
 
-  // 关闭单词查询
   const closeLookup = useCallback(() => {
     setShowLookup(false);
     setSelectedWord('');
   }, []);
 
-  // 音频事件处理
-  const handleTimeUpdate = useCallback(() => {
-    if (audioRef.current) {
-      setCurrentTime(audioRef.current.currentTime);
-    }
-  }, []);
-
-  const handleLoadedMetadata = useCallback(() => {
-    if (audioRef.current) {
-      setDuration(audioRef.current.duration);
-    }
-  }, []);
-
-  const handleEnded = useCallback(() => {
-    if (playMode === 'all-loop' && audioRef.current) {
-      audioRef.current.currentTime = 0;
-      audioRef.current.play();
-    } else {
-      setIsPlaying(false);
-    }
-  }, [playMode]);
-
-  // 上一句/下一句
   const prevSentence = useCallback(() => {
-    if (currentLineIndex > 0) {
-      seekToSentence(currentLineIndex - 1);
-    }
+    if (currentLineIndex > 0) seekToSentence(currentLineIndex - 1);
   }, [currentLineIndex, seekToSentence]);
 
   const nextSentence = useCallback(() => {
-    if (lrcData && currentLineIndex < lrcData.lines.length - 1) {
-      seekToSentence(currentLineIndex + 1);
-    }
+    if (lrcData && currentLineIndex < lrcData.lines.length - 1) seekToSentence(currentLineIndex + 1);
   }, [currentLineIndex, lrcData, seekToSentence]);
 
   // 键盘快捷键
@@ -252,29 +156,12 @@ export default function NCEPlayer({ book, lesson, onBack, isLoggedIn = false }: 
       if (e.target instanceof HTMLInputElement) return;
       
       switch (e.code) {
-        case 'Space':
-          e.preventDefault();
-          togglePlay();
-          break;
-        case 'ArrowLeft':
-        case 'KeyA':
-          e.preventDefault();
-          prevSentence();
-          break;
-        case 'ArrowRight':
-        case 'KeyD':
-          e.preventDefault();
-          nextSentence();
-          break;
-        case 'KeyR':
-          e.preventDefault();
-          if (currentLineIndex >= 0) {
-            seekToSentence(currentLineIndex);
-          }
-          break;
+        case 'Space': e.preventDefault(); togglePlay(); break;
+        case 'ArrowLeft': e.preventDefault(); prevSentence(); break;
+        case 'ArrowRight': e.preventDefault(); nextSentence(); break;
+        case 'KeyR': e.preventDefault(); if (currentLineIndex >= 0) seekToSentence(currentLineIndex); break;
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [togglePlay, prevSentence, nextSentence, currentLineIndex, seekToSentence]);
@@ -282,259 +169,136 @@ export default function NCEPlayer({ book, lesson, onBack, isLoggedIn = false }: 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
-          <p className="text-white/60">加载课文中...</p>
-        </div>
+        <div className="w-10 h-10 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="text-center">
-          <p className="text-red-400 mb-4">{error}</p>
-          <button
-            onClick={onBack}
-            className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
-          >
-            返回目录
-          </button>
-        </div>
+      <div className="text-center py-20">
+        <p className="text-red-400 mb-4">{error}</p>
+        <button onClick={onBack} className="px-4 py-2 bg-purple-600 text-white rounded-lg">返回</button>
       </div>
     );
   }
 
   return (
-    <div className="pb-32" ref={containerRef}>
-      {/* 隐藏的音频元素 */}
+    <div className="pb-32">
       <audio
         ref={audioRef}
         src={audioUrl}
-        onTimeUpdate={handleTimeUpdate}
-        onLoadedMetadata={handleLoadedMetadata}
-        onEnded={handleEnded}
+        onTimeUpdate={() => audioRef.current && setCurrentTime(audioRef.current.currentTime)}
+        onLoadedMetadata={() => audioRef.current && setDuration(audioRef.current.duration)}
+        onEnded={() => {
+          if (playMode === 'all-loop' && audioRef.current) {
+            audioRef.current.currentTime = 0;
+            audioRef.current.play();
+          } else setIsPlaying(false);
+        }}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
       />
 
       {/* 课程信息 */}
-      <div className="mb-4 sm:mb-6 p-4 sm:p-6 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10">
-        <h2 className="text-lg sm:text-2xl font-bold text-white mb-1 sm:mb-2">{lesson.title}</h2>
-        {lrcData?.metadata.title && (
-          <p className="text-white/60 text-sm sm:text-base">{lrcData.metadata.title}</p>
-        )}
-        <div className="flex items-center gap-2 sm:gap-4 mt-2 sm:mt-4 text-xs sm:text-sm text-white/50">
-          <span>第 {book} 册</span>
+      <div className="mb-4 p-4 bg-white/5 rounded-xl border border-white/10">
+        <h2 className="text-lg font-bold text-white truncate">{lesson.title}</h2>
+        <div className="flex items-center gap-3 mt-2 text-xs text-white/50">
+          <span>第{book}册</span>
           <span>•</span>
-          <span>{lrcData?.lines.length || 0} 句</span>
+          <span>{lrcData?.lines.length || 0}句</span>
           <span>•</span>
           <span>{formatTime(duration)}</span>
         </div>
       </div>
 
       {/* 控制面板 */}
-      <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 space-y-3 sm:space-y-4">
+      <div className="mb-4 p-3 bg-white/5 rounded-xl border border-white/10 space-y-3">
         {/* 进度条 */}
-        <div className="flex items-center gap-2 sm:gap-4">
-          <span className="text-white/60 text-xs sm:text-sm w-10 sm:w-14 text-right">{formatTime(currentTime)}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-white/60 text-xs w-10 text-right">{formatTime(currentTime)}</span>
           <input
             type="range"
             min={0}
             max={duration || 100}
             value={currentTime}
             onChange={handleSeek}
-            className="flex-1 h-2 bg-white/20 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 sm:[&::-webkit-slider-thumb]:w-4 sm:[&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-purple-500 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
+            className="flex-1 h-2 bg-white/20 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-purple-500 [&::-webkit-slider-thumb]:rounded-full"
           />
-          <span className="text-white/60 text-xs sm:text-sm w-10 sm:w-14">{formatTime(duration)}</span>
+          <span className="text-white/60 text-xs w-10">{formatTime(duration)}</span>
         </div>
 
-        {/* 播放控制 - 移动端简化 */}
-        <div className="flex items-center justify-center gap-2 sm:gap-4">
-          {/* 上一句 */}
-          <button
-            onClick={prevSentence}
-            className="w-10 h-10 sm:w-10 sm:h-10 flex items-center justify-center text-white/70 hover:text-white active:bg-white/20 hover:bg-white/10 rounded-full transition-colors"
-            title="上一句"
-          >
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
-            </svg>
+        {/* 播放控制 */}
+        <div className="flex items-center justify-center gap-3">
+          <button onClick={prevSentence} className="w-10 h-10 flex items-center justify-center text-white/70 active:bg-white/20 rounded-full">
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" /></svg>
           </button>
-
-          {/* 播放/暂停 */}
-          <button
-            onClick={togglePlay}
-            className="w-14 h-14 sm:w-14 sm:h-14 flex items-center justify-center bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white rounded-full transition-colors shadow-lg shadow-purple-500/30"
-            title="播放/暂停"
-          >
+          <button onClick={togglePlay} className="w-14 h-14 flex items-center justify-center bg-purple-600 text-white rounded-full shadow-lg">
             {isPlaying ? (
-              <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-              </svg>
+              <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>
             ) : (
-              <svg className="w-7 h-7 ml-1" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M8 5v14l11-7z" />
-              </svg>
+              <svg className="w-7 h-7 ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
             )}
           </button>
-
-          {/* 下一句 */}
-          <button
-            onClick={nextSentence}
-            className="w-10 h-10 sm:w-10 sm:h-10 flex items-center justify-center text-white/70 hover:text-white active:bg-white/20 hover:bg-white/10 rounded-full transition-colors"
-            title="下一句"
-          >
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
-            </svg>
+          <button onClick={nextSentence} className="w-10 h-10 flex items-center justify-center text-white/70 active:bg-white/20 rounded-full">
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" /></svg>
           </button>
-
-          {/* 重播当前句 */}
-          <button
-            onClick={() => currentLineIndex >= 0 && seekToSentence(currentLineIndex)}
-            className="w-10 h-10 sm:w-10 sm:h-10 flex items-center justify-center text-white/70 hover:text-white active:bg-white/20 hover:bg-white/10 rounded-full transition-colors"
-            title="重播当前句"
-          >
+          <button onClick={() => currentLineIndex >= 0 && seekToSentence(currentLineIndex)} className="w-10 h-10 flex items-center justify-center text-white/70 active:bg-white/20 rounded-full">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
           </button>
         </div>
 
-        {/* 播放速度 - 移动端水平滚动 */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
-          <span className="text-white/50 text-xs sm:text-sm whitespace-nowrap">速度</span>
-          <div className="flex gap-1">
-            {[0.5, 0.75, 1, 1.25, 1.5, 2].map((rate) => (
-              <button
-                key={rate}
-                onClick={() => handleRateChange(rate)}
-                className={`px-2 sm:px-2 py-1 text-xs rounded transition-colors whitespace-nowrap ${
-                  playbackRate === rate
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-white/10 text-white/60 hover:bg-white/20 hover:text-white'
-                }`}
-              >
-                {rate}x
-              </button>
-            ))}
-          </div>
-          
-          {/* 音量 - 仅桌面端显示 */}
-          <div className="hidden sm:flex items-center gap-2 ml-auto">
-            <svg className="w-5 h-5 text-white/50" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
-            </svg>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.1}
-              value={volume}
-              onChange={handleVolumeChange}
-              className="w-20 h-1 bg-white/20 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
-            />
-          </div>
+        {/* 速度和模式 */}
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-white/50">速度</span>
+          {[0.5, 0.75, 1, 1.25, 1.5].map((rate) => (
+            <button
+              key={rate}
+              onClick={() => handleRateChange(rate)}
+              className={`px-2 py-1 rounded ${playbackRate === rate ? 'bg-purple-600 text-white' : 'bg-white/10 text-white/60'}`}
+            >
+              {rate}x
+            </button>
+          ))}
         </div>
 
-        {/* 播放模式和显示选项 - 移动端改为两行 */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 pt-2 border-t border-white/10">
-          {/* 播放模式 */}
-          <div className="flex items-center gap-2 overflow-x-auto">
-            <span className="text-white/50 text-xs sm:text-sm whitespace-nowrap">模式</span>
-            <div className="flex gap-1">
-              <button
-                onClick={() => setPlayMode('sequential')}
-                className={`px-2 sm:px-3 py-1 text-xs rounded transition-colors whitespace-nowrap ${
-                  playMode === 'sequential'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-white/10 text-white/60 hover:bg-white/20'
-                }`}
-              >
-                连读
-              </button>
-              <button
-                onClick={() => setPlayMode('single-loop')}
-                className={`px-2 sm:px-3 py-1 text-xs rounded transition-colors whitespace-nowrap ${
-                  playMode === 'single-loop'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-white/10 text-white/60 hover:bg-white/20'
-                }`}
-              >
-                单句
-              </button>
-              <button
-                onClick={() => setPlayMode('all-loop')}
-                className={`px-2 sm:px-3 py-1 text-xs rounded transition-colors whitespace-nowrap ${
-                  playMode === 'all-loop'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-white/10 text-white/60 hover:bg-white/20'
-                }`}
-              >
-                循环
-              </button>
-            </div>
-          </div>
-
-          {/* 显示模式 */}
-          <div className="flex items-center gap-2 overflow-x-auto">
-            <span className="text-white/50 text-xs sm:text-sm whitespace-nowrap">显示</span>
-            <div className="flex gap-1">
-              <button
-                onClick={() => setHideMode('none')}
-                className={`px-2 sm:px-3 py-1 text-xs rounded transition-colors whitespace-nowrap ${
-                  hideMode === 'none'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-white/10 text-white/60 hover:bg-white/20'
-                }`}
-              >
-                全部
-              </button>
-              <button
-                onClick={() => setHideMode('chinese')}
-                className={`px-2 sm:px-3 py-1 text-xs rounded transition-colors whitespace-nowrap ${
-                  hideMode === 'chinese'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-white/10 text-white/60 hover:bg-white/20'
-                }`}
-              >
-                隐中
-              </button>
-              <button
-                onClick={() => setHideMode('english')}
-                className={`px-2 sm:px-3 py-1 text-xs rounded transition-colors whitespace-nowrap ${
-                  hideMode === 'english'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-white/10 text-white/60 hover:bg-white/20'
-                }`}
-              >
-                隐英
-              </button>
-              <button
-                onClick={() => setHideMode('both')}
-                className={`px-2 sm:px-3 py-1 text-xs rounded transition-colors whitespace-nowrap ${
-                  hideMode === 'both'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-white/10 text-white/60 hover:bg-white/20'
-                }`}
-              >
-                纯听
-              </button>
-            </div>
-            
-            {/* 自动滚动 */}
-            <label className="flex items-center gap-1 sm:gap-2 cursor-pointer ml-auto">
-              <input
-                type="checkbox"
-                checked={autoScroll}
-                onChange={(e) => setAutoScroll(e.target.checked)}
-                className="w-4 h-4 rounded border-white/20 bg-white/10 text-purple-600 focus:ring-purple-500"
-              />
-              <span className="text-white/50 text-xs sm:text-sm whitespace-nowrap">滚动</span>
-            </label>
-          </div>
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-white/50">模式</span>
+          {[
+            { mode: 'sequential' as const, label: '连续' },
+            { mode: 'single-loop' as const, label: '单句' },
+            { mode: 'all-loop' as const, label: '循环' },
+          ].map(({ mode, label }) => (
+            <button
+              key={mode}
+              onClick={() => setPlayMode(mode)}
+              className={`px-2 py-1 rounded ${playMode === mode ? 'bg-purple-600 text-white' : 'bg-white/10 text-white/60'}`}
+            >
+              {label}
+            </button>
+          ))}
+          
+          <span className="text-white/50 ml-2">显示</span>
+          {[
+            { mode: 'none' as const, label: '全部' },
+            { mode: 'chinese' as const, label: '隐中' },
+            { mode: 'english' as const, label: '隐英' },
+          ].map(({ mode, label }) => (
+            <button
+              key={mode}
+              onClick={() => setHideMode(mode)}
+              className={`px-2 py-1 rounded ${hideMode === mode ? 'bg-purple-600 text-white' : 'bg-white/10 text-white/60'}`}
+            >
+              {label}
+            </button>
+          ))}
+          
+          <label className="flex items-center gap-1 ml-auto">
+            <input type="checkbox" checked={autoScroll} onChange={(e) => setAutoScroll(e.target.checked)} className="w-3 h-3" />
+            <span className="text-white/50">滚动</span>
+          </label>
         </div>
       </div>
 
@@ -548,9 +312,7 @@ export default function NCEPlayer({ book, lesson, onBack, isLoggedIn = false }: 
             index={index}
             isActive={index === currentLineIndex}
             hideMode={hideMode}
-            status={sentenceStatus[index]}
             onPlay={() => seekToSentence(index)}
-            onStatusChange={(status) => updateSentenceStatus(index, status)}
             onTextSelect={handleTextSelection}
           />
         ))}
@@ -566,17 +328,9 @@ export default function NCEPlayer({ book, lesson, onBack, isLoggedIn = false }: 
         />
       )}
 
-      {/* 快捷键提示 - 仅桌面端显示 */}
-      <div className="hidden sm:block fixed bottom-20 right-4 text-white/30 text-xs space-y-1">
-        <p>Space: 播放/暂停</p>
-        <p>←/A: 上一句</p>
-        <p>→/D: 下一句</p>
-        <p>R: 重播当前句</p>
-      </div>
-
-      {/* 移动端操作提示 */}
-      <div className="sm:hidden fixed bottom-20 left-4 right-4 text-center text-white/30 text-xs">
-        <p>💡 长按单词可查询释义</p>
+      {/* 提示 */}
+      <div className="fixed bottom-14 left-0 right-0 text-center text-white/30 text-xs py-2">
+        💡 长按单词可查询释义
       </div>
     </div>
   );
